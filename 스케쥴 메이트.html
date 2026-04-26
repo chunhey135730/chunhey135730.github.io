@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>나만의 타임 블로킹 플래너 (완성본)</title>
+    <style>
+        :root {
+            --hour-height: 60px;
+            --bg-color: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        body { font-family: 'Pretendard', -apple-system, sans-serif; display: flex; margin: 0; height: 100vh; background: var(--bg-color); }
+
+        /* 햄버거 메뉴 스타일 추가 */
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
+        .sidebar-title { font-size: 1.1rem; font-weight: bold; color: #333; margin: 0; }
+        .menu-container { position: relative; }
+        .hamburger-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #495057; padding: 4px 8px; border-radius: 6px; transition: background 0.2s; }
+        .hamburger-btn:hover { background: #f1f3f5; color: #228be6; }
+        .dropdown-content { display: none; position: absolute; right: 0; top: 100%; background-color: white; min-width: 220px; box-shadow: 0px 8px 20px rgba(0,0,0,0.15); border-radius: 8px; z-index: 100; border: 1px solid var(--border-color); overflow: hidden; margin-top: 5px; }
+        .dropdown-content.show { display: block; animation: fadeIn 0.2s; }
+        .menu-item { padding: 14px 16px; cursor: pointer; font-size: 0.95rem; color: #333; transition: background 0.2s; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f3f5; }
+        .menu-item:last-child { border-bottom: none; }
+        .menu-item:hover { background-color: #f8f9fa; color: #228be6; font-weight: bold; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 타임라인 레이아웃 (수정됨: 1:1:1 비율을 위해 flex: 1 적용) */
+        #timetable-container { flex: 1; min-width: 300px; overflow-y: auto; padding: 20px; border-right: 1px solid var(--border-color); position: relative; background: white; z-index: 1; box-sizing: border-box;}
+        .timeline { position: relative; width: 100%; margin: 0 auto; background: white; border: 1px solid var(--border-color); height: 1440px; }
+        .hour-slot { height: var(--hour-height); border-bottom: 1px dashed var(--border-color); padding-left: 10px; color: #adb5bd; font-size: 0.8rem; box-sizing: border-box;}
+
+        /* 날짜 네비게이터 */
+        #date-navigator-wrapper { margin-bottom: 25px; }
+        .top-calendar-picker { text-align: center; margin-bottom: 15px; }
+        .top-calendar-picker input[type="date"] { padding: 8px 15px; border: 2px solid #e7f5ff; border-radius: 20px; font-weight: bold; color: #228be6; cursor: pointer; font-family: inherit; font-size: 0.95rem; background: white; transition: all 0.2s; }
+        #week-navigator { display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .nav-arrow { width: 32px; height: 32px; border-radius: 50%; border: none; background: white; color: #495057; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .nav-arrow:hover { background: #f1f3f5; color: #228be6; }
+        #week-days-container { display: flex; gap: 6px; }
+        .date-block { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 45px; height: 55px; border-radius: 12px; cursor: pointer; transition: all 0.2s; color: #868e96; border: 1px solid transparent; }
+        .date-block:hover { background: white; border-color: #dee2e6; color: #495057; }
+        .date-block.active { background: #228be6; color: white; box-shadow: 0 4px 10px rgba(34, 139, 230, 0.3); font-weight: bold; border-color: #228be6; }
+        .date-block .day-name { font-size: 0.75rem; margin-bottom: 2px; }
+        .date-block .date-num { font-size: 1.1rem; }
+        .date-block.sun { color: #fa5252; }
+        .date-block.sat { color: #339af0; }
+        .date-block.active.sun, .date-block.active.sat { color: white; }
+
+        /* 블록 스타일 */
+        .placed-block { position: absolute; left: 50px; right: 10px; color: #333; border-radius: 6px; padding: 5px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: grab; z-index: 10; border-left: 5px solid rgba(0,0,0,0.2); box-sizing: border-box; overflow: hidden; font-weight: bold; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: flex-start;}
+        .placed-block:active { cursor: grabbing; }
+        .placed-block.selected { box-shadow: 0 0 0 3px #228be6, 0 4px 6px rgba(0,0,0,0.2); z-index: 20; }
+        .resizer { position: absolute; bottom: 0; left: 0; right: 0; height: 8px; cursor: ns-resize; z-index: 15; background: rgba(0,0,0,0.05); }
+        .resizer:hover { background: rgba(0,0,0,0.2); }
+        .delete-btn { background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; z-index: 20;}
+        .delete-btn:hover { background: rgba(255,0,0,0.5); color: white; }
+
+        /* 모달 및 서브페이지 시스템 */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 3000; display: none; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .modal-actions { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .modal-actions button { width: 100%; padding: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; font-size: 0.95rem; }
+        .btn-cancel { background: #f1f3f5; color: #495057; }
+        .btn-cancel:hover { background: #e9ecef; }
+        .btn-danger { background: #fa5252; color: white; }
+        .btn-danger:hover { background: #e03131; }
+        .btn-primary { background: #228be6; color: white; }
+        .btn-primary:hover { background: #1c7ed6; }
+
+        #fixed-page-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 2000; display: none; justify-content: center; align-items: center; }
+        .fixed-page-content { background: #f8f9fa; border-radius: 12px; width: 100%; max-width: 750px; height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+        .day-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .day-tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; background: #e9ecef; border-radius: 8px; font-weight: bold; color: #495057;}
+        .day-tab.active { background: #228be6; color: white; }
+        
+        .stats-tabs { display: flex; gap: 5px; margin-bottom: 15px; background: #f1f3f5; padding: 4px; border-radius: 8px; }
+        .stats-tab { flex: 1; text-align: center; padding: 6px; cursor: pointer; border-radius: 6px; font-size: 0.9rem; color: #868e96; font-weight: bold;}
+        .stats-tab.active { background: white; color: #228be6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* 사이드바, 카테고리, 창고 (수정됨: 1:1:1 비율을 위해 flex: 1 적용) */
+        #sidebar { flex: 1; min-width: 300px; padding: 20px; background: white; display: flex; flex-direction: column; box-sizing: border-box; }
+        .controls { margin-bottom: 10px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
+        .controls input[type="text"], .controls input[type="number"] { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 5px; }
+        .controls > button { width: 100%; background: #228be6; color: white; border: none; font-weight: bold; cursor: pointer; padding: 10px; margin-top: 5px; border-radius: 4px;}
+        .controls > button:hover { background: #1c7ed6; }
+        
+        .cat-manage-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; margin-top: 15px; }
+        .cat-manage-header h4 { margin: 0; color: #495057; font-size: 0.95rem;}
+        
+        .category-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 15px; border: 1px solid var(--border-color); cursor: pointer; font-size: 0.8rem; margin-bottom: 5px; background: white; transition: all 0.2s;}
+        .category-chip.active { border-color: #333; box-shadow: 0 0 0 1px #333 inset; font-weight: bold; background: #f8f9fa; }
+        
+        .add-category-box { display: flex; gap: 5px; margin-bottom: 10px; }
+        .add-category-box input[type="text"] { flex: 1; padding: 6px; font-size: 0.8rem; margin: 0; }
+        .add-category-box input[type="color"] { width: 30px; height: 30px; padding: 0; border: none; cursor: pointer; background: none; }
+        .add-category-box button { width: auto; padding: 6px 12px; margin: 0; background: #228be6; color: white; border: none; border-radius: 4px; cursor: pointer;}
+        
+        #block-library { flex: 1; overflow-y: auto; min-height: 150px; }
+        .block-item { padding: 12px; margin-bottom: 10px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--border-color); border-radius: 8px; cursor: grab; display: flex; justify-content: space-between; align-items: flex-start; font-weight: bold; box-sizing: border-box; }
+        
+        #drop-indicator { position: absolute; left: 50px; right: 10px; background: rgba(0, 0, 0, 0.05); border: 2px dashed #868e96; border-radius: 6px; pointer-events: none; display: none; z-index: 5; box-sizing: border-box; }
+
+        /* 세부 할 일 패널 (수정됨: 1:1:1 비율을 위해 flex: 1 유지, box-sizing 추가) */
+        #task-details-container { flex: 1; padding: 30px; background: var(--bg-color); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; overflow-y: auto; min-width: 300px; box-sizing: border-box; }
+        .empty-task-notice { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #adb5bd; text-align: center; }
+        .empty-task-notice svg { width: 64px; height: 64px; margin-bottom: 15px; color: #dee2e6; }
+        #task-details-content { display: none; flex-direction: column; height: 100%; }
+        #task-details-content h2 { margin-top: 0; color: #333; margin-bottom: 20px; border-bottom: 2px solid #228be6; padding-bottom: 10px; display:inline-block; }
+        #subtask-list { flex: 1; overflow-y: auto; margin-bottom: 20px; padding-right: 10px; }
+        .subtask-item { display: flex; align-items: center; gap: 10px; font-size: 1rem; margin-bottom: 12px; background: white; padding: 12px; border-radius: 8px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .subtask-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #228be6; }
+        .subtask-item button { width: auto; padding: 6px 10px; margin-top: 0; background: #fa5252; font-size: 0.85rem; color: white; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        .subtask-item button:hover { background: #e03131; }
+    </style>
+</head>
+<body>
+
+<div id="task-details-container">
+    <div id="empty-task" class="empty-task-notice">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+        <h3>일정별 세부 할 일</h3>
+        <p>오른쪽 시간표에서 일정을 클릭하여<br>할 일을 관리해보세요.</p>
+    </div>
+    <div id="task-details-content">
+        <h2>📝 <span id="detail-title" style="color: #228be6;"></span></h2>
+        <div id="subtask-list"></div>
+        <div style="display:flex; gap:10px; margin-top: auto;">
+            <input type="text" id="newSubtask" placeholder="새로운 할 일 입력 후 Enter..." onkeypress="if(event.key==='Enter') addSubtask()" style="flex:1; padding:12px; border:1px solid #ccc; border-radius:8px; font-size:1rem;">
+            <button onclick="addSubtask()" style="padding:12px 20px; border:none; background:#228be6; color:white; border-radius:8px; font-weight:bold; cursor:pointer; font-size:1rem;">추가</button>
+        </div>
+    </div>
+</div>
+
+<div id="timetable-container" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="hideIndicator()">
+    <div id="date-navigator-wrapper">
+        <div class="top-calendar-picker"><input type="date" id="calendar-picker" onchange="setDate(this.value)"></div>
+        <div id="week-navigator">
+            <button onclick="changeDate(-1)" class="nav-arrow">&lt;</button>
+            <div id="week-days-container"></div>
+            <button onclick="changeDate(1)" class="nav-arrow">&gt;</button>
+        </div>
+    </div>
+    <div class="timeline" id="timeline">
+        <div id="drop-indicator"></div>
+        <!-- 시간 슬롯 렌더링 -->
+    </div>
+</div>
+
+<div id="sidebar">
+    <div class="sidebar-header">
+        <h2 class="sidebar-title">설정 및 도구</h2>
+        <div class="menu-container">
+            <button class="hamburger-btn" onclick="toggleMenu(event)">☰</button>
+            <div id="dropdown-menu" class="dropdown-content">
+                <div class="menu-item" onclick="showTutorial(); toggleMenu(event);">💡 플래너 사용 가이드</div>
+                <div class="menu-item" onclick="showStatistics(); toggleMenu(event);">📊 전체 밸런스 통계 보기</div>
+                <div class="menu-item" onclick="openFixedPage(); toggleMenu(event);">🗓️ 요일별 고정 일정 관리</div>
+                <div class="menu-item" onclick="openCategoryManager(); toggleMenu(event);">⚙️ 카테고리 관리 / 수정</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <h3 style="margin-top:0; margin-bottom:10px;">새로운 블록 만들기</h3>
+        <input type="text" id="taskName" placeholder="일정 이름 (예: 자료 조사)">
+        <div style="display:flex; gap:5px;">
+            <input type="number" id="taskDuration" placeholder="시간(분)" min="10" step="10" value="60">
+        </div>
+        
+        <!-- 카테고리 관리 영역 복구 -->
+        <div class="cat-manage-header">
+            <h4>카테고리 선택</h4>
+        </div>
+        <div id="category-selector" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;"></div>
+        
+        <button onclick="createNewLibraryBlock()">창고에 추가</button>
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="margin: 0;">블록 창고</h3>
+    </div>
+    <div id="block-library"></div>
+</div>
+
+<!-- 카테고리 관리 전용 모달 복구 -->
+<div id="cat-manager-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 350px;">
+        <h3 style="margin-top: 0; margin-bottom: 15px; text-align: left;">⚙️ 카테고리 관리</h3>
+        <p style="font-size: 0.85rem; color: #868e96; text-align: left; margin-top: 0;">새 카테고리를 추가하거나 기존 카테고리를 수정/삭제해보세요.</p>
+        
+        <div class="add-category-box" style="margin-bottom: 15px;">
+            <input type="color" id="newCatColor" value="#cccccc" title="카테고리 색상">
+            <input type="text" id="newCatName" placeholder="새 카테고리 이름" onkeypress="if(event.key==='Enter') addNewCategory()">
+            <button onclick="addNewCategory()">추가</button>
+        </div>
+
+        <div id="cat-manager-list" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; text-align: left;"></div>
+        <div class="modal-actions" style="flex-direction: row; justify-content: flex-end;">
+            <button class="btn-cancel" onclick="closeCatManager()" style="width:auto; padding:8px 15px;">취소</button>
+            <button class="btn-primary" onclick="saveCatManager()" style="width:auto; padding:8px 15px;">저장</button>
+        </div>
+    </div>
+</div>
+
+<!-- 고정 일정 관리 모달 -->
+<div id="fixed-page-overlay">
+    <div class="fixed-page-content">
+        <div style="padding:20px 25px; background:white; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center;">
+            <h2 style="margin:0;">🗓️ 요일별 고정 일정 설정</h2>
+            <button onclick="closeFixedPage()" style="border:none; background:none; font-size:2rem; cursor:pointer; color:#868e96; padding:0; line-height:1;">&times;</button>
+        </div>
+        <div style="padding:20px 25px; flex:1; overflow-y:auto;">
+            <div style="margin-bottom:20px; background:white; padding:20px; border-radius:10px; border:1px solid var(--border-color);">
+                <h4 style="margin-top:0; margin-bottom:12px; color:#333;">1. 일괄 적용할 기간 설정</h4>
+                <input type="date" id="fixedStartDate" style="padding:8px; border:1px solid #ccc; border-radius:4px;"> 
+                <span style="font-weight:bold;">~</span> 
+                <input type="date" id="fixedEndDate" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="background:white; padding:20px; border-radius:10px; border:1px solid var(--border-color); flex:1; display:flex; flex-direction:column;">
+                <h4 style="margin-top:0; margin-bottom:5px; color:#333;">2. 요일별 일정 등록</h4>
+                <p style="font-size:0.85rem; color:#868e96; margin-top:0; margin-bottom:15px;">* 여러 요일을 눌러 동시에 선택할 수 있습니다.</p>
+                <div class="day-tabs" id="fixed-day-tabs"></div>
+                <div style="display:flex; gap:8px; margin-bottom:15px; flex-wrap:wrap; align-items:center;">
+                    <input type="time" id="fixedTime" style="padding:8px; border:1px solid #ccc; border-radius:4px;">
+                    <input type="number" id="fixedDur" value="60" style="width:80px; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                    <select id="fixedCategorySelect" style="padding:8px; border:1px solid #ccc; border-radius:4px; width:100px;"></select>
+                    <input type="text" id="fixedName" placeholder="일정명" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px; min-width:120px;">
+                    <button onclick="addFixedItem()" class="btn-primary" style="padding:8px 15px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">등록</button>
+                </div>
+                <div id="fixed-list" style="flex:1; overflow-y:auto; background:#f1f3f5; padding:10px; border-radius:8px; border:1px inset #dee2e6; min-height: 150px;"></div>
+            </div>
+            <button onclick="applyFixedToAll()" class="btn-primary" style="width:100%; padding:14px; margin-top:20px; border:none; border-radius:8px; font-weight:bold; font-size:1.1rem; cursor:pointer;">✅ 시간표에 일괄 적용하기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 통계 전용 모달 -->
+<div id="stats-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 380px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0;">📊 밸런스 통계</h3>
+            <button onclick="document.getElementById('stats-modal').style.display='none'" style="width:auto; padding:4px 8px; background:transparent; color:#868e96; font-size:1.2rem; margin:0; border:none; cursor:pointer;">&times;</button>
+        </div>
+        <div class="stats-tabs">
+            <div class="stats-tab active" id="tab-daily" onclick="renderStats('daily')">일간</div>
+            <div class="stats-tab" id="tab-weekly" onclick="renderStats('weekly')">주간</div>
+            <div class="stats-tab" id="tab-monthly" onclick="renderStats('monthly')">월간</div>
+        </div>
+        <div id="stats-content" style="text-align: left; min-height: 150px;"></div>
+    </div>
+</div>
+
+<!-- 공통 알림 모달 -->
+<div id="custom-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 id="modal-title"></h3>
+        <div id="modal-message" style="margin-bottom:20px;"></div>
+        <div id="modal-actions" class="modal-actions"></div>
+    </div>
+</div>
+
+<!-- 튜토리얼 모달 -->
+<div id="tutorial-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 420px; text-align: left; padding: 35px;">
+        <h2 style="margin-top: 0; color: #228be6; text-align: center; margin-bottom: 10px;">🎉 플래너 시작하기</h2>
+        <p style="color: #495057; font-size: 0.95rem; line-height: 1.5; margin-bottom: 25px; text-align: center;">
+            처음 오셨군요! 100% 활용을 위한 4가지 핵심 기능을 알려드릴게요.
+        </p>
+        <ul style="padding-left: 20px; color: #333; font-size: 0.95rem; line-height: 1.7; margin-bottom: 30px;">
+            <li style="margin-bottom: 12px;"><b>🖱️ 드래그 앤 드롭:</b> 우측에서 일정을 만들고 <b>'창고'</b>에 담은 뒤, 중앙 시간표로 끌어다 놓으세요.</li>
+            <li style="margin-bottom: 12px;"><b>↕️ 시간 조절:</b> 시간표에 놓인 일정의 <b>하단 경계선</b>을 마우스로 끌어 시간을 자유롭게 늘리거나 줄이세요.</li>
+            <li style="margin-bottom: 12px;"><b>📝 세부 할 일:</b> 중앙 시간표의 <b>일정을 클릭</b>하면, 좌측 패널에서 그 시간의 상세 할 일을 작성할 수 있습니다.</li>
+            <li><b>📊 통계 & 고정 일정:</b> 매주 반복되는 일정은 '고정 일정'으로 한 번에 덮어씌우고, 내 시간 밸런스는 '통계'로 확인하세요.</li>
+        </ul>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-cancel" onclick="closeTutorial(false)" style="flex: 1; padding: 14px;">닫기</button>
+            <button class="btn-primary" onclick="closeTutorial(true)" style="flex: 2; padding: 14px; font-size: 1.05rem;">🚀 다시 보지 않고 시작!</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 1. 상태 변수 설정 ---
+    const SNAP_MINUTES = 10;
+
+    // 타임존(KST 등) 오류 방지를 위한 로컬 시간 기준 날짜 포맷 함수
+    function formatDateString(d) { 
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    let currentDateStr = formatDateString(new Date());
+    let allTimelineData = JSON.parse(localStorage.getItem('allTimelineData')) || {};
+    let categories = JSON.parse(localStorage.getItem('categories')) || [
+        {id:'cat1', name:'일', color:'#e38c8c'},
+        {id:'cat2', name:'생활', color:'#e3db8c'},
+        {id:'cat3', name:'여가', color:'#8cc0e3'}
+    ];
+    let currentCategoryId = categories[0]?.id;
+    let fixedData = JSON.parse(localStorage.getItem('fixedData')) || { startDate:'', endDate:'', schedules:{0:[],1:[],2:[],3:[],4:[],5:[],6:[]} };
+    let currentFixedDays = [1]; 
+    let blockIdCounter = 0;
+    
+    // 할 일(Subtask) 상태
+    let subtasksMap = {};
+    let selectedBlockId = null;
+
+    // 드래그 및 리사이즈 변수
+    let draggingDuration = 0;
+    let dragOffsetY = 0;
+    let isResizing = false;
+    let currentResizingBlock = null;
+    let resizeStartY = 0;
+    let resizeStartHeight = 0;
+
+    // --- 2. 초기화 ---
+    window.onload = () => {
+        renderTimelineBackground();
+        renderCategories();
+        loadLibraryData();
+        loadTimelineForDate(currentDateStr);
+        checkTutorial(); // 튜토리얼 팝업 체크
+    };
+
+    // 햄버거 메뉴 토글 및 외부 클릭 시 닫기
+    function toggleMenu(e) {
+        if(e) e.stopPropagation();
+        document.getElementById("dropdown-menu").classList.toggle("show");
+    }
+    
+    window.onclick = function(event) {
+        if (!event.target.matches('.hamburger-btn')) {
+            var dropdowns = document.getElementsByClassName("dropdown-content");
+            for (var i = 0; i < dropdowns.length; i++) {
+                var openDropdown = dropdowns[i];
+                if (openDropdown.classList.contains('show')) {
+                    openDropdown.classList.remove('show');
+                }
+            }
+        }
+    }
+
+    function renderTimelineBackground() {
+        const tl = document.getElementById('timeline');
+        const blocks = tl.querySelectorAll('.placed-block');
+        tl.innerHTML = '<div id="drop-indicator"></div>';
+        for(let i=0; i<24; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'hour-slot';
+            slot.innerText = `${String(i).padStart(2,'0')}:00`;
+            tl.appendChild(slot);
+        }
+        blocks.forEach(b => tl.appendChild(b));
+    }
+
+    // --- 3. 공통 모달 UI ---
+    function showModal(title, message, buttons) {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-message').innerHTML = message;
+        const actions = document.getElementById('modal-actions');
+        actions.innerHTML = '';
+        buttons.forEach(btn => {
+            const b = document.createElement('button');
+            b.innerText = btn.text;
+            b.className = btn.className || 'btn-cancel';
+            b.onclick = () => {
+                document.getElementById('custom-modal').style.display = 'none';
+                if (btn.onClick) btn.onClick();
+            };
+            actions.appendChild(b);
+        });
+        document.getElementById('custom-modal').style.display = 'flex';
+    }
+
+    // --- 튜토리얼 관련 함수 ---
+    function checkTutorial() {
+        if (!localStorage.getItem('hasSeenTutorial')) {
+            showTutorial();
+        }
+    }
+    function showTutorial() { 
+        document.getElementById('tutorial-modal').style.display = 'flex'; 
+    }
+    function closeTutorial(dontShowAgain) {
+        document.getElementById('tutorial-modal').style.display = 'none';
+        if(dontShowAgain) localStorage.setItem('hasSeenTutorial', 'true');
+    }
+
+    // --- 4. 날짜 네비게이션 ---
+    function setDate(val) { 
+        if(!val) return;
+        saveData(); 
+        currentDateStr = val; 
+        loadTimelineForDate(val); 
+    }
+    
+    function changeDate(off) {
+        saveData();
+        let d = new Date(currentDateStr);
+        d.setDate(d.getDate() + off);
+        currentDateStr = formatDateString(d);
+        loadTimelineForDate(currentDateStr);
+    }
+
+    function loadTimelineForDate(dateStr) {
+        document.querySelectorAll('.placed-block').forEach(b => b.remove());
+        subtasksMap = {}; // 날짜 이동시 세부할일 초기화
+        
+        selectedBlockId = null;
+        document.getElementById('empty-task').style.display = 'flex';
+        document.getElementById('task-details-content').style.display = 'none';
+        
+        document.getElementById('calendar-picker').value = dateStr;
+        renderWeekNav();
+        
+        const data = allTimelineData[dateStr] || [];
+        data.forEach(item => {
+            createPlacedBlock(item.name, item.duration, item.color, item.category, item.top, item.id, item.isFixed);
+            if(item.subtasks) subtasksMap[item.id] = item.subtasks;
+        });
+    }
+
+    function renderWeekNav() {
+        const container = document.getElementById('week-days-container');
+        container.innerHTML = '';
+        const daysName = ['일', '월', '화', '수', '목', '금', '토'];
+        let parts = currentDateStr.split('-');
+        let centerDate = new Date(parts[0], parts[1] - 1, parts[2]);
+
+        for(let i=-3; i<=3; i++) {
+            let d = new Date(centerDate.getFullYear(), centerDate.getMonth(), centerDate.getDate() + i);
+            let dStr = formatDateString(d);
+            let dayOfWeek = d.getDay();
+            
+            const div = document.createElement('div');
+            div.className = `date-block ${i===0?'active':''}`;
+            if(dayOfWeek===0) div.classList.add('sun');
+            if(dayOfWeek===6) div.classList.add('sat');
+            
+            div.innerHTML = `<div class="day-name">${daysName[dayOfWeek]}</div><div class="date-num">${d.getDate()}</div>`;
+            div.onclick = () => setDate(dStr);
+            container.appendChild(div);
+        }
+    }
+
+    // --- 5. 카테고리 관리 & 창고 ---
+    function renderCategories() {
+        const sel = document.getElementById('category-selector');
+        sel.innerHTML = '';
+        categories.forEach(c => {
+            const chip = document.createElement('div');
+            chip.className = `category-chip ${c.id === currentCategoryId ? 'active' : ''}`;
+            chip.innerHTML = `<span style="background:${c.color}; width:12px; height:12px; border-radius:50%;"></span> ${c.name}`;
+            chip.onclick = () => { currentCategoryId = c.id; renderCategories(); };
+            sel.appendChild(chip);
+        });
+    }
+
+    function addNewCategory() {
+        const nameInput = document.getElementById('newCatName');
+        const colorInput = document.getElementById('newCatColor');
+        const name = nameInput.value.trim();
+        if (!name) return;
+        
+        const newCat = { id: 'cat_' + Date.now(), name: name, color: colorInput.value };
+        tempCategories.push(newCat);
+        
+        nameInput.value = '';
+        renderCatManagerList();
+    }
+
+    let tempCategories = [];
+    function openCategoryManager() {
+        tempCategories = JSON.parse(JSON.stringify(categories));
+        renderCatManagerList();
+        document.getElementById('cat-manager-modal').style.display = 'flex';
+    }
+
+    function renderCatManagerList() {
+        const list = document.getElementById('cat-manager-list');
+        list.innerHTML = '';
+        if (tempCategories.length === 0) {
+            list.innerHTML = '<p style="color:#868e96; font-size:0.9rem;">등록된 카테고리가 없습니다.</p>';
+            return;
+        }
+        tempCategories.forEach((cat, index) => {
+            const row = document.createElement('div');
+            row.style.cssText = "display:flex; gap:10px; margin-bottom:10px; align-items:center;";
+            row.innerHTML = `
+                <input type="color" value="${cat.color}" onchange="tempCategories[${index}].color = this.value" style="width:36px;height:36px;padding:0;border:none;border-radius:4px;cursor:pointer;">
+                <input type="text" value="${cat.name}" onchange="tempCategories[${index}].name = this.value" style="flex:1; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:0.9rem;">
+                <button onclick="removeTempCat(${index})" style="width:auto; padding:8px 12px; background:#fa5252; color:white; border:none; border-radius:4px; margin:0; cursor:pointer;">삭제</button>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    function removeTempCat(index) {
+        tempCategories.splice(index, 1);
+        renderCatManagerList();
+    }
+
+    function closeCatManager() { document.getElementById('cat-manager-modal').style.display = 'none'; }
+
+    function saveCatManager() {
+        if (tempCategories.length === 0 && categories.length > 0) {
+             if(!confirm("모든 카테고리를 삭제하시겠습니까?\n기존에 만들어둔 일정들은 '미지정' 회색으로 변경됩니다.")) return;
+        }
+
+        categories.forEach(oldCat => {
+            const newCat = tempCategories.find(c => c.id === oldCat.id);
+            if (newCat) {
+                if (oldCat.name !== newCat.name || oldCat.color !== newCat.color) {
+                    updateBlocksCategory(oldCat.name, newCat.name, newCat.color);
+                }
+            } else {
+                updateBlocksCategory(oldCat.name, '미지정', '#cccccc');
+            }
+        });
+        
+        categories = tempCategories;
+        if (!currentCategoryId && categories.length > 0) currentCategoryId = categories[categories.length - 1].id;
+        else if (!categories.find(c => c.id === currentCategoryId) && categories.length > 0) currentCategoryId = categories[0].id;
+        else if (categories.length === 0) currentCategoryId = null;
+
+        localStorage.setItem('categories', JSON.stringify(categories));
+        renderCategories();
+        saveData();
+        saveLibraryData();
+        closeCatManager();
+    }
+
+    function updateBlocksCategory(oldName, newName, newColor) {
+        document.querySelectorAll('.placed-block').forEach(b => {
+            if (b.dataset.category === oldName) {
+                b.dataset.category = newName;
+                b.style.backgroundColor = newColor;
+                const titleSpan = b.querySelector('.block-title');
+                if(titleSpan) titleSpan.innerText = newName === '미지정' ? `${b.dataset.name} (${b.style.height})` : `[${newName}] ${b.dataset.name} (${b.style.height})`;
+            }
+        });
+        document.querySelectorAll('#block-library .block-item').forEach(b => {
+            if (b.dataset.category === oldName) {
+                b.dataset.category = newName;
+                b.style.borderLeftColor = newColor;
+                const textSpan = b.querySelector('span');
+                if(textSpan) textSpan.innerText = newName === '미지정' ? `${b.dataset.name} (${b.dataset.duration}분)` : `[${newName}] ${b.dataset.name} (${b.dataset.duration}분)`;
+            }
+        });
+        for(let date in allTimelineData) {
+            allTimelineData[date].forEach(item => {
+                if(item.category === oldName) { item.category = newName === '미지정' ? null : newName; item.color = newColor; }
+            });
+        }
+    }
+
+    function createNewLibraryBlock(savedName, savedDuration, savedColor, savedCategoryName) {
+        const name = savedName || document.getElementById('taskName').value;
+        const duration = savedDuration || document.getElementById('taskDuration').value;
+        let catObj = categories.find(c => c.id === currentCategoryId);
+        let color = savedColor || (catObj ? catObj.color : '#cccccc');
+        let categoryName = savedCategoryName || (catObj ? catObj.name : '미지정');
+
+        if(!name || !duration) return showModal("알림", "일정 이름과 시간을 입력해주세요.", [{text:"확인"}]);
+
+        const item = document.createElement('div');
+        item.className = 'block-item';
+        item.draggable = true;
+        item.style.borderLeft = `8px solid ${color}`;
+        item.style.height = Math.max(parseInt(duration), 40) + 'px';
+
+        const textSpan = document.createElement('span');
+        textSpan.innerText = categoryName !== '미지정' ? `[${categoryName}] ${name} (${duration}분)` : `${name} (${duration}분)`;
+        item.appendChild(textSpan);
+
+        const delBtn = document.createElement('button');
+        delBtn.innerHTML = '&times;';
+        delBtn.style.cssText = "background:none; border:none; color:#fa5252; cursor:pointer; font-size:1.2rem; padding:0;";
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            showModal("블록 삭제", `<b>'${name}'</b> 블록을 창고에서 삭제합니다.<br>시간표에 이미 배치된 같은 일정도 함께 삭제할까요?`, [
+                { text: "모두 삭제 (시간표 포함)", className: "btn-danger", onClick: () => { 
+                    item.remove(); 
+                    saveLibraryData(); 
+                    deleteBlocksFromTimeline(name, categoryName);
+                }},
+                { text: "창고만 삭제", className: "btn-primary", onClick: () => { 
+                    item.remove(); 
+                    saveLibraryData(); 
+                }},
+                { text: "취소", className: "btn-cancel" }
+            ]);
+        };
+        item.appendChild(delBtn);
+
+        item.dataset.name = name; item.dataset.duration = duration; item.dataset.color = color; item.dataset.category = categoryName;
+        item.ondragstart = drag;
+        document.getElementById('block-library').appendChild(item);
+
+        if(!savedName) { saveLibraryData(); document.getElementById('taskName').value = ''; }
+    }
+
+    function saveLibraryData() {
+        const items = document.querySelectorAll('#block-library .block-item');
+        const data = Array.from(items).map(i => ({ name: i.dataset.name, duration: i.dataset.duration, color: i.dataset.color, category: i.dataset.category }));
+        localStorage.setItem('libraryData', JSON.stringify(data));
+    }
+
+    function loadLibraryData() {
+        const data = JSON.parse(localStorage.getItem('libraryData')) || [];
+        document.getElementById('block-library').innerHTML = '';
+        data.forEach(i => createNewLibraryBlock(i.name, i.duration, i.color, i.category));
+    }
+
+    // 시간표에서 특정 이름과 카테고리를 가진 일정을 일괄 삭제하는 함수
+    function deleteBlocksFromTimeline(targetName, targetCategory) {
+        let changed = false;
+        for (let date in allTimelineData) {
+            let initialLen = allTimelineData[date].length;
+            allTimelineData[date] = allTimelineData[date].filter(b => !(b.name === targetName && b.category === targetCategory));
+            if (allTimelineData[date].length !== initialLen) changed = true;
+        }
+        
+        if (changed) {
+            localStorage.setItem('allTimelineData', JSON.stringify(allTimelineData));
+            loadTimelineForDate(currentDateStr); // 현재 화면 새로고침
+        }
+    }
+
+    // --- 6. 드래그 앤 드롭 & 타임라인 ---
+    function allowDrop(e) { 
+        e.preventDefault(); 
+        const ind = document.getElementById('drop-indicator');
+        const rect = document.getElementById('timeline').getBoundingClientRect();
+        let targetY = Math.max(0, e.clientY - rect.top - dragOffsetY);
+        targetY = Math.round(targetY / SNAP_MINUTES) * SNAP_MINUTES;
+        
+        ind.style.display = 'block';
+        ind.style.top = targetY + 'px';
+        ind.style.height = draggingDuration + 'px';
+    }
+    
+    function hideIndicator() { document.getElementById('drop-indicator').style.display = 'none'; }
+    document.addEventListener('dragend', hideIndicator);
+
+    function drag(e) {
+        draggingDuration = parseInt(e.target.dataset.duration || e.target.style.height || 60);
+        if (e.target.classList.contains('placed-block')) {
+            e.dataTransfer.setData("action", "move");
+            e.dataTransfer.setData("id", e.target.id);
+            dragOffsetY = e.clientY - e.target.getBoundingClientRect().top;
+            e.dataTransfer.setData("offsetY", dragOffsetY); 
+        } else {
+            dragOffsetY = 0;
+            e.dataTransfer.setData("action", "create");
+            e.dataTransfer.setData("name", e.target.dataset.name);
+            e.dataTransfer.setData("duration", e.target.dataset.duration);
+            e.dataTransfer.setData("color", e.target.dataset.color);
+            e.dataTransfer.setData("category", e.target.dataset.category || "미지정");
+        }
+    }
+
+    function drop(e) {
+        e.preventDefault(); hideIndicator();
+        const action = e.dataTransfer.getData("action");
+        const rect = document.getElementById('timeline').getBoundingClientRect();
+        let targetY = Math.max(0, e.clientY - rect.top - dragOffsetY);
+        targetY = Math.round(targetY / SNAP_MINUTES) * SNAP_MINUTES;
+
+        if (action === "move") {
+            const block = document.getElementById(e.dataTransfer.getData("id"));
+            block.style.top = targetY + 'px';
+            pushOverlappingBlocks(block.id);
+            saveData();
+        } else if (action === "create") {
+            const block = createPlacedBlock(
+                e.dataTransfer.getData("name"), parseInt(e.dataTransfer.getData("duration")),
+                e.dataTransfer.getData("color"), e.dataTransfer.getData("category"), targetY
+            );
+            pushOverlappingBlocks(block.id);
+            saveData();
+        }
+    }
+
+    function createPlacedBlock(name, duration, color, category, topY, id=null, isFixed=false) {
+        const block = document.createElement('div');
+        block.className = 'placed-block';
+        block.id = id || 'placed_' + Date.now() + '_' + (++blockIdCounter);
+        block.draggable = true; block.ondragstart = drag;
+        block.dataset.name = name; block.dataset.category = category; block.dataset.isFixed = isFixed;
+        
+        block.style.height = duration + 'px';
+        block.style.top = topY + 'px';
+        block.style.backgroundColor = color;
+        block.style.paddingBottom = '15px';
+        if(isFixed) block.style.borderLeftStyle = 'dashed';
+
+        // 일정 클릭 시 상세 할 일(Subtask) 오픈 연결
+        block.onclick = function(e) { selectBlock(this.id); };
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'block-title';
+        titleSpan.innerText = category && category !== '미지정' ? `[${category}] ${name} (${duration}분)` : `${name} (${duration}분)`;
+        titleSpan.style.pointerEvents = 'none';
+        block.appendChild(titleSpan);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn'; delBtn.innerHTML = '&times;';
+        delBtn.onclick = (e) => { 
+            e.stopPropagation(); 
+            if (selectedBlockId === block.id) {
+                selectedBlockId = null;
+                document.getElementById('empty-task').style.display = 'flex';
+                document.getElementById('task-details-content').style.display = 'none';
+            }
+            block.remove(); 
+            saveData(); 
+        };
+        block.appendChild(delBtn);
+
+        const resizer = document.createElement('div');
+        resizer.className = 'resizer';
+        resizer.addEventListener('mousedown', initResize, false);
+        block.appendChild(resizer);
+
+        document.getElementById('timeline').appendChild(block);
+        return block;
+    }
+
+    function pushOverlappingBlocks(fixedId) {
+        let blocks = Array.from(document.querySelectorAll('.placed-block'));
+        let resolved = false; let limit = 100;
+        while(!resolved && limit-- > 0) {
+            resolved = true;
+            blocks.sort((a, b) => parseInt(a.style.top) - parseInt(b.style.top));
+            for (let i=0; i<blocks.length; i++) {
+                for (let j=i+1; j<blocks.length; j++) {
+                    let top1 = parseInt(blocks[i].style.top), bot1 = top1 + parseInt(blocks[i].style.height);
+                    let top2 = parseInt(blocks[j].style.top), bot2 = top2 + parseInt(blocks[j].style.height);
+                    if (top1 < bot2 && bot1 > top2) {
+                        let toMove = (blocks[i].id === fixedId) ? blocks[j] : (blocks[j].id === fixedId ? blocks[i] : blocks[j]);
+                        let ref = (toMove === blocks[j]) ? blocks[i] : blocks[j];
+                        toMove.style.top = (parseInt(ref.style.top) + parseInt(ref.style.height)) + 'px';
+                        resolved = false; break;
+                    }
+                }
+                if(!resolved) break;
+            }
+        }
+    }
+
+    // --- 7. 리사이즈 ---
+    function initResize(e) {
+        e.preventDefault(); e.stopPropagation();
+        isResizing = true; currentResizingBlock = e.target.parentElement;
+        resizeStartY = e.clientY; resizeStartHeight = parseInt(currentResizingBlock.style.height);
+        currentResizingBlock.draggable = false;
+        document.addEventListener('mousemove', doResize); document.addEventListener('mouseup', stopResize);
+    }
+    function doResize(e) {
+        if(!isResizing) return;
+        let newH = Math.max(SNAP_MINUTES, Math.round((resizeStartHeight + (e.clientY - resizeStartY)) / SNAP_MINUTES) * SNAP_MINUTES);
+        currentResizingBlock.style.height = newH + 'px';
+        const title = currentResizingBlock.querySelector('.block-title');
+        let cat = currentResizingBlock.dataset.category, name = currentResizingBlock.dataset.name;
+        if(title) title.innerText = cat && cat !== '미지정' ? `[${cat}] ${name} (${newH}분)` : `${name} (${newH}분)`;
+    }
+    function stopResize(e) {
+        if(!isResizing) return;
+        isResizing = false;
+        document.removeEventListener('mousemove', doResize); document.removeEventListener('mouseup', stopResize);
+        if(currentResizingBlock) {
+            currentResizingBlock.draggable = true;
+            pushOverlappingBlocks(currentResizingBlock.id);
+            saveData(); currentResizingBlock = null;
+        }
+    }
+
+    // --- 8. 세부 할 일 (Subtask) 관리 ---
+    function selectBlock(id) {
+        document.querySelectorAll('.placed-block').forEach(b => b.classList.remove('selected'));
+        let block = document.getElementById(id);
+        if(!block) return;
+        block.classList.add('selected');
+        selectedBlockId = id;
+        
+        document.getElementById('empty-task').style.display = 'none';
+        document.getElementById('task-details-content').style.display = 'flex';
+        document.getElementById('detail-title').innerText = block.dataset.name;
+        
+        renderSubtasks();
+    }
+
+    function renderSubtasks() {
+        let list = document.getElementById('subtask-list');
+        list.innerHTML = '';
+        let tasks = subtasksMap[selectedBlockId] || [];
+        tasks.forEach((t, index) => {
+            let div = document.createElement('div');
+            div.className = 'subtask-item';
+            div.innerHTML = `
+                <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleSubtask(${index}, this.checked)">
+                <span style="flex: 1; ${t.done ? 'text-decoration: line-through; color:#aaa;' : ''}">${t.text}</span>
+                <button onclick="deleteSubtask(${index})">삭제</button>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function addSubtask() {
+        let input = document.getElementById('newSubtask');
+        let text = input.value.trim();
+        if(!text) return;
+        if(!subtasksMap[selectedBlockId]) subtasksMap[selectedBlockId] = [];
+        subtasksMap[selectedBlockId].push({ text: text, done: false });
+        input.value = '';
+        renderSubtasks();
+        saveData(); 
+    }
+
+    function toggleSubtask(index, isDone) {
+        subtasksMap[selectedBlockId][index].done = isDone;
+        renderSubtasks();
+        saveData();
+    }
+
+    function deleteSubtask(index) {
+        subtasksMap[selectedBlockId].splice(index, 1);
+        renderSubtasks();
+        saveData();
+    }
+
+    function saveData() {
+        const blocks = document.querySelectorAll('.placed-block');
+        allTimelineData[currentDateStr] = Array.from(blocks).map(b => ({
+            id: b.id, name: b.dataset.name, duration: parseInt(b.style.height),
+            color: b.style.backgroundColor, category: b.dataset.category,
+            top: parseInt(b.style.top), isFixed: b.dataset.isFixed === 'true',
+            subtasks: subtasksMap[b.id] || [] // 세부 할 일 데이터 포함
+        }));
+        localStorage.setItem('allTimelineData', JSON.stringify(allTimelineData));
+    }
+
+    // --- 9. 고정 일정 페이지 ---
+    function openFixedPage() {
+        document.getElementById('fixedStartDate').value = fixedData.startDate || '';
+        document.getElementById('fixedEndDate').value = fixedData.endDate || '';
+        const catSel = document.getElementById('fixedCategorySelect');
+        catSel.innerHTML = categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('') + `<option value="미지정">미지정</option>`;
+        renderFixedTabs(); renderFixedList();
+        document.getElementById('fixed-page-overlay').style.display = 'flex';
+    }
+
+    function closeFixedPage() { document.getElementById('fixed-page-overlay').style.display = 'none'; }
+
+    function renderFixedTabs() {
+        const cont = document.getElementById('fixed-day-tabs'); cont.innerHTML = '';
+        ['일','월','화','수','목','금','토'].forEach((name, i) => {
+            const tab = document.createElement('div');
+            tab.className = `day-tab ${currentFixedDays.includes(i) ? 'active' : ''}`;
+            tab.innerText = name;
+            tab.onclick = () => {
+                if(currentFixedDays.includes(i)) currentFixedDays = currentFixedDays.length > 1 ? currentFixedDays.filter(d=>d!==i) : currentFixedDays;
+                else { currentFixedDays.push(i); currentFixedDays.sort(); }
+                renderFixedTabs(); renderFixedList();
+            };
+            cont.appendChild(tab);
+        });
+    }
+
+    function renderFixedList() {
+        const list = document.getElementById('fixed-list'); list.innerHTML = '';
+        const daysName = ['일','월','화','수','목','금','토'];
+        let hasAny = false;
+        currentFixedDays.forEach(day => {
+            let sches = fixedData.schedules[day] || [];
+            if(sches.length > 0) {
+                hasAny = true;
+                let header = document.createElement('div');
+                header.style.cssText = "font-weight:bold; color:#495057; margin: 15px 0 5px 5px; font-size:0.95rem;";
+                header.innerText = `[${daysName[day]}요일]`;
+                list.appendChild(header);
+                
+                sches.forEach((s, idx) => {
+                    let color = categories.find(c=>c.name===s.cat)?.color || '#ccc';
+                    let [h, m] = s.time.split(':').map(Number);
+                    let endH = Math.floor((h*60 + m + parseInt(s.dur))/60)%24, endM = (h*60 + m + parseInt(s.dur))%60;
+                    let timeStr = `${s.time} ~ ${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}`;
+                    
+                    let item = document.createElement('div');
+                    item.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:12px; background:white; border:1px solid #dee2e6; border-radius:8px; margin-bottom:8px;";
+                    item.innerHTML = `<div style="display:flex; gap:10px; align-items:center;"><div style="width:12px;height:12px;border-radius:50%;background:${color}"></div><span style="color:#228be6; font-weight:900; font-size:0.9rem;">${timeStr}</span><span style="font-weight:bold;">[${s.cat}] ${s.name}</span></div>
+                    <button class="btn-cancel" style="width:auto; padding:4px 10px; margin:0; border:none; border-radius:4px; cursor:pointer;" onclick="deleteFixedItem(${day}, ${idx})">삭제</button>`;
+                    list.appendChild(item);
+                });
+            }
+        });
+        if(!hasAny) list.innerHTML = `<p style="text-align:center; color:#868e96; margin-top:30px;">등록된 고정 일정이 없습니다.</p>`;
+    }
+
+    function addFixedItem() {
+        const time = document.getElementById('fixedTime').value;
+        const dur = document.getElementById('fixedDur').value;
+        const name = document.getElementById('fixedName').value;
+        const cat = document.getElementById('fixedCategorySelect').value;
+        if(!time || !name) return showModal("알림", "시간과 일정명을 입력해주세요.", [{text:"확인"}]);
+
+        currentFixedDays.forEach(day => {
+            if(!fixedData.schedules[day]) fixedData.schedules[day] = [];
+            fixedData.schedules[day].push({ time, dur, name, cat });
+            fixedData.schedules[day].sort((a,b) => a.time.localeCompare(b.time));
+        });
+        localStorage.setItem('fixedData', JSON.stringify(fixedData));
+        document.getElementById('fixedName').value = '';
+        renderFixedList();
+    }
+
+    function deleteFixedItem(day, idx) {
+        fixedData.schedules[day].splice(idx, 1);
+        localStorage.setItem('fixedData', JSON.stringify(fixedData));
+        renderFixedList();
+    }
+
+    function applyFixedToAll() {
+        const startStr = document.getElementById('fixedStartDate').value;
+        const endStr = document.getElementById('fixedEndDate').value;
+        if(!startStr || !endStr) return showModal("오류", "기간을 설정해주세요.", [{text:"확인"}]);
+        
+        let start = new Date(startStr); let end = new Date(endStr);
+        if(start > end) return showModal("오류", "종료일이 시작일보다 빠를 수 없습니다.", [{text:"확인"}]);
+
+        fixedData.startDate = startStr; fixedData.endDate = endStr;
+        localStorage.setItem('fixedData', JSON.stringify(fixedData));
+
+        for(let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            let dStr = formatDateString(d);
+            let day = d.getDay();
+            let dSches = fixedData.schedules[day] || [];
+            let dData = (allTimelineData[dStr] || []).filter(i => !i.isFixed);
+
+            dSches.forEach(s => {
+                let [h, m] = s.time.split(':').map(Number);
+                dData.push({
+                    id: 'fixed_' + Math.random().toString(36).substr(2,9),
+                    name: s.name, duration: parseInt(s.dur),
+                    color: categories.find(c => c.name === s.cat)?.color || '#ccc',
+                    category: s.cat, top: Math.round((h * 60 + m) / SNAP_MINUTES) * SNAP_MINUTES, isFixed: true
+                });
+            });
+            allTimelineData[dStr] = dData;
+        }
+        localStorage.setItem('allTimelineData', JSON.stringify(allTimelineData));
+        loadTimelineForDate(currentDateStr);
+        closeFixedPage();
+        showModal("완료", "일괄 적용되었습니다!", [{text:"확인", className:"btn-primary"}]);
+    }
+
+    // --- 10. 통계 대시보드 ---
+    function showStatistics() { document.getElementById('stats-modal').style.display = 'flex'; renderStats('daily'); }
+    function renderStats(period) {
+        document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(`tab-${period}`).classList.add('active');
+
+        let dates = []; let base = new Date(currentDateStr); let label = "";
+        if(period === 'daily') { dates.push(currentDateStr); label = `${base.getMonth()+1}월 ${base.getDate()}일`; }
+        else if(period === 'weekly') {
+            let day = base.getDay(); let diff = base.getDate() - day + (day===0?-6:1);
+            let mon = new Date(base.setDate(diff));
+            for(let i=0; i<7; i++) { let d = new Date(mon); d.setDate(mon.getDate()+i); dates.push(formatDateString(d)); }
+            let sun = new Date(mon); sun.setDate(mon.getDate()+6);
+            label = `${mon.getMonth()+1}월 ${mon.getDate()}일 ~ ${sun.getMonth()+1}월 ${sun.getDate()}일`;
+        } else {
+            let y = base.getFullYear(), m = base.getMonth(), last = new Date(y, m+1, 0).getDate();
+            for(let i=1; i<=last; i++) dates.push(formatDateString(new Date(y, m, i)));
+            label = `${y}년 ${m+1}월`;
+        }
+
+        let stats = {}, total = 0;
+        dates.forEach(dStr => {
+            (allTimelineData[dStr] || []).forEach(item => {
+                let cat = item.category || '미지정';
+                if(!stats[cat]) stats[cat] = { dur:0, color:item.color };
+                stats[cat].dur += item.duration; total += item.duration;
+            });
+        });
+
+        const content = document.getElementById('stats-content');
+        if(total === 0) return content.innerHTML = `<p style='color:#868e96; text-align:center; padding:30px 0;'>데이터가 없습니다.</p>`;
+
+        let html = `<div style="text-align:center; margin-bottom:15px; color:#495057; font-size:0.9rem; background:#f8f9fa; padding:5px; border-radius:4px;">기준: <b>${label}</b></div>`;
+        html += `<h4 style="margin-top:0; margin-bottom:15px; color:#495057;">총 계획: <span style="color:#228be6;">${Math.floor(total/60)}h ${total%60}m</span></h4>`;
+        html += `<div style="display:flex; height:24px; border-radius:12px; overflow:hidden; margin-bottom:20px; border:1px solid #dee2e6;">`;
+        for(let cat in stats) html += `<div style="width:${(stats[cat].dur/total)*100}%; background:${stats[cat].color};"></div>`;
+        html += `</div>`;
+        
+        for(let cat in stats) {
+            let pct = ((stats[cat].dur/total)*100).toFixed(1), dur = stats[cat].dur;
+            html += `<div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:0.95rem; border-bottom:1px dashed #f1f3f5; padding-bottom:5px;">
+                <span style="display:flex; align-items:center; gap:8px;"><div style="width:14px; height:14px; border-radius:50%; background:${stats[cat].color};"></div><b>${cat}</b></span>
+                <span>${Math.floor(dur/60)>0 ? Math.floor(dur/60)+'h ' : ''}${dur%60}m <small style="color:#868e96;">(${pct}%)</small></span>
+            </div>`;
+        }
+        content.innerHTML = html;
+    }
+</script>
+</body>
+</html>
