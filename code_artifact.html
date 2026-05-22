@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>웹소설 제목으로 고전소설 맞추기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6; /* bg-gray-100 */
+        }
+        /* 페이드 인 애니메이션 */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen text-gray-800 p-4 sm:p-6">
+
+    <div class="bg-white p-6 sm:p-10 rounded-3xl shadow-2xl max-w-lg w-full flex flex-col items-center">
+        
+        <h1 class="text-2xl sm:text-3xl font-extrabold mb-8 text-indigo-600 text-center leading-snug">이 버릇,<br>누구의 것일까?</h1>
+        
+        <!-- 초기 화면 / 게임 중 상태 표시 텍스트 -->
+        <p id="status-text" class="text-gray-500 mb-8 text-center text-sm sm:text-base">아래 버튼을 눌러 첫 번째 버릇을 확인해 보세요!</p>
+
+        <!-- 퀴즈 카드 영역 (클릭 시 정답 확인) -->
+        <button id="quiz-card" class="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-2xl p-6 sm:p-10 mb-8 min-h-[200px] flex flex-col items-center justify-center text-center transition-all duration-300 transform hidden focus:outline-none focus:ring-4 focus:ring-indigo-200">
+            <span id="card-label" class="text-sm font-bold text-indigo-400 mb-3 tracking-wider">Q. 다음 버릇의 주인공은?</span>
+            <p id="quiz-text" class="text-xl sm:text-2xl font-bold text-indigo-900 break-keep leading-relaxed transition-opacity duration-200"></p>
+            <p id="instruction-text" class="text-xs font-semibold text-indigo-400 mt-6 animate-pulse bg-indigo-100 px-3 py-1 rounded-full">(여기를 터치하여 정답 확인)</p>
+        </button>
+
+        <!-- 문제 뽑기 버튼 -->
+        <button id="next-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl active:transform active:scale-95 text-lg sm:text-xl flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            랜덤 버릇 뽑기!
+        </button>
+
+    </div>
+
+    <script>
+        // 퀴즈 데이터
+        const quizList = [
+            { habit: "머리 쓸어넘기기", person: "의정" },
+            { habit: "팅글소리 내기", person: "지은" },
+            { habit: "햇빛보면 재채기", person: "이음" },
+            { habit: "어색할 때 손동작이 많아짐", person: "정희" },
+            { habit: "팔찌 꼈다 뺐다", person: "지훈" },
+            { habit: "의성어 입으로 내기", person: "윤진" }
+        ];
+
+        let currentQuiz = null;
+        let isAnswerShown = false;
+
+        // DOM 요소 가져오기
+        const quizCard = document.getElementById('quiz-card');
+        const cardLabel = document.getElementById('card-label');
+        const quizText = document.getElementById('quiz-text');
+        const instructionText = document.getElementById('instruction-text');
+        const statusText = document.getElementById('status-text');
+        const nextBtn = document.getElementById('next-btn');
+
+        function generateRandomQuiz() {
+            // 무작위 인덱스 선택
+            const randomIndex = Math.floor(Math.random() * quizList.length);
+            currentQuiz = quizList[randomIndex];
+            isAnswerShown = false;
+
+            // UI 텍스트 설정 (질문 모드)
+            cardLabel.textContent = 'Q. 다음 버릇의 주인공은?';
+            cardLabel.className = 'text-sm font-bold text-indigo-400 mb-3 tracking-wider';
+            
+            quizText.textContent = `"${currentQuiz.habit}"`;
+            quizText.className = 'text-xl sm:text-2xl font-bold text-indigo-900 break-keep leading-relaxed transition-opacity duration-200';
+            
+            instructionText.classList.remove('hidden');
+
+            // 애니메이션 초기화 및 표시
+            quizCard.classList.remove('hidden');
+            quizCard.classList.remove('fade-in');
+            void quizCard.offsetWidth; // 리플로우 강제 유발
+            quizCard.classList.add('fade-in');
+
+            statusText.classList.add('hidden');
+            nextBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                다음 버릇 뽑기
+            `;
+        }
+
+        function toggleAnswer() {
+            if (!currentQuiz) return;
+
+            // 페이드 아웃 효과
+            quizText.style.opacity = 0;
+            
+            setTimeout(() => {
+                if (!isAnswerShown) {
+                    // 정답 보기 상태로 전환
+                    cardLabel.textContent = 'A. 정답은?';
+                    cardLabel.className = 'text-sm font-bold text-green-500 mb-3 tracking-wider';
+                    
+                    quizText.textContent = currentQuiz.person;
+                    quizText.className = 'text-3xl sm:text-4xl font-extrabold text-green-600 transition-opacity duration-200';
+                    
+                    instructionText.classList.add('hidden');
+                } else {
+                    // 다시 질문 보기 상태로 전환
+                    cardLabel.textContent = 'Q. 다음 버릇의 주인공은?';
+                    cardLabel.className = 'text-sm font-bold text-indigo-400 mb-3 tracking-wider';
+                    
+                    quizText.textContent = `"${currentQuiz.habit}"`;
+                    quizText.className = 'text-xl sm:text-2xl font-bold text-indigo-900 break-keep leading-relaxed transition-opacity duration-200';
+                    
+                    instructionText.classList.remove('hidden');
+                }
+                isAnswerShown = !isAnswerShown;
+                
+                // 페이드 인 효과
+                quizText.style.opacity = 1;
+            }, 150);
+        }
+
+        // 이벤트 리스너 등록
+        nextBtn.addEventListener('click', generateRandomQuiz);
+        quizCard.addEventListener('click', toggleAnswer);
+    </script>
+</body>
+</html>
