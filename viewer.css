@@ -463,9 +463,6 @@ main {flex-grow: 1; position: relative;}
 
 @media (min-width: 640px) {.quotation {font-size: 36px;}}
 
-/*용어사전*/
-.dic-array, .gb-array{margin-bottom: 32px; text-align: center;}
-
 .highlighter {
     background: linear-gradient(100deg, rgba(254, 240, 138, 0) 0%, rgba(254, 240, 138, 0.85) 15%, rgba(254, 240, 138, 0.85) 85%, rgba(254, 240, 138, 0) 100%);
     display: inline;
@@ -578,6 +575,21 @@ main {flex-grow: 1; position: relative;}
     padding-left: 16px;
     padding-right: 16px;
 }
+
+/*용어사전*/
+.dic-array, .gb-array{margin-bottom: 32px; text-align: center;}
+
+#main-space-dic{width: 100vh; margin: 30px auto;}
+
+.dic-des{margin: 10px auto; text-align: center;}
+
+#dic-search{height: 40px;}
+#dic-search > div{margin: 0 10px 0 0; float: right;}
+
+#wordbox{}
+
+.word{margin: 15px 0 10px 0;}
+.word-des{margin: 0 0 30px 0;}
 
 /*푸터*/
 footer {
