@@ -13,7 +13,7 @@
 
 a{text-decoration: none;}
 
-/* Custom Custom Scrollbar & Aesthetics */
+/*기본*/
 body {
     background-color: #2a2421;
     color: #2b2b2b;
@@ -26,14 +26,6 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
-
-/* Gold Foil Effect for Text */
-.gold-text {
-    background: linear-gradient(135deg, #ffe082 0%, #ffb300 50%, #ffa000 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
 
 /*헤더*/
 header {
